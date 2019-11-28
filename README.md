@@ -19,6 +19,8 @@ Usage of fortigate2awsd:
     	Specify the Fortigate ip and port to log to ip:port
   -password string
     	Specify the Fortigate ssh password
+  -secret-manager string
+    	Specify the AWS secrets manager secrets name to use as password
   -size int
     	Specify the number of events to send to AWS Cloudwatch. (default 10)
   -stream string
