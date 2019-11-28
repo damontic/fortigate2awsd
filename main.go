@@ -13,6 +13,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -26,6 +27,7 @@ func main() {
 	ipPort := flag.String("ip-port", "", "Specify the Fortigate ip and port to log to ip:port")
 	username := flag.String("username", "", "Specify the Fortigate ssh username")
 	password := flag.String("password", "", "Specify the Fortigate ssh password")
+	secret := flag.String("secret-manager", "", "Specify the AWS secrets manager secrets name to use as password")
 	eventSize := flag.Int("size", 10, "Specify the number of events to send to AWS Cloudwatch.")
 	flag.Parse()
 
@@ -38,15 +40,33 @@ func main() {
 		log.Fatalf("You must specify both the log group and the log stream.\nCurrent logGroup: %s\nCurrent logStream: %s\nSee %s -h for help.", *logGroup, *logStream, os.Args[0])
 	}
 
-	if *ipPort == "" || *username == "" || *password == "" {
-		log.Fatalf("You must specify:\n\t-ip-port as a string with format 'ip:port' where Fortigate is running.\n\t-username to use to connect to the Fortigate instance.\n\t-password to use to connect to the Fortigate instance.\n\nA normal execution could be:\n\t%s -ip-port 192.168.0.1:22 -username admin -password 'a_secret_pass' -group cloudwatch_log_group -stream cloudwatch_log_stream\n\nSee %s -h for help.", os.Args[0], os.Args[0])
+	if *ipPort == "" || *username == "" {
+		log.Fatalf("You must specify:\n\t-ip-port as a string with format 'ip:port' where Fortigate is running.\n\t-username to use to connect to the Fortigate instance.\n\nA normal execution could be:\n\t%s -ip-port 192.168.0.1:22 -username admin -password 'a_secret_pass' -group cloudwatch_log_group -stream cloudwatch_log_stream\n\t%s -ip-port 192.168.0.1:22 -username admin -secret-manager 'aws_secret_manager_name' -group cloudwatch_log_group -stream cloudwatch_log_stream\n\nSee %s -h for help.", os.Args[0], os.Args[0], os.Args[0])
 	}
 
-	fortigate2awsd(dryRun, eventSize, logGroup, logStream, ipPort, username, password)
+	if *secret == "" || *password == "" {
+		log.Fatalf("You must specify one of:\n\t-password 'a_password'\t(NOT RECOMENDED)\n\t-secret-manager 'an_aws_secret_manager_entry'\n\nSee %s -h for help.", os.Args[0])
+	}
+
+	fortigate2awsd(dryRun, eventSize, logGroup, logStream, ipPort, username, password, secret)
 }
 
-func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStream, ipPort, username, password *string) {
+func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStream, ipPort, username, password, secret *string) {
+
 	mySession := session.Must(session.NewSession())
+
+	if *secret != "" {
+		secretsmanagerClient := secretsmanager.New(mySession)
+		getSecretValueInput := &secretsmanager.GetSecretValueInput{
+			SecretId: secret,
+		}
+		getSecretValueResult, err := secretsmanagerClient.GetSecretValue(getSecretValueInput)
+		if err != nil {
+			log.Fatalf("Error in sshClient during secretsmanagerClient.GetSecretValue\n%v\n", err)
+		}
+		password = getSecretValueResult.SecretString
+	}
+
 	cloudwatchlogsClient := cloudwatchlogs.New(mySession)
 
 	config := &ssh.ClientConfig{
