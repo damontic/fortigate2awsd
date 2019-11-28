@@ -1,0 +1,9 @@
+[Unit]
+Description=Connect to Fortigate and send logs to Output
+DefaultDependencies=no
+Requires=systemd-journald.service
+After=systemd-journald.service systemd-remount-fs.service
+
+[Service]
+ExecStart=/usr/local/bin/fortigate2awsd -dry-run
+Type=simple
