@@ -146,10 +146,10 @@ func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStream, ipPort, u
 							log.Fatalf("%v", err)
 						}
 					}
-				} else {
-					fmt.Println(m)
 				}
 				counter++
+			} else {
+				fmt.Println(m)
 			}
 
 			if _, err := wc.Write([]byte("execute log display\n")); err != nil {
@@ -161,8 +161,6 @@ func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStream, ipPort, u
 
 func sendEventsCloudwatch(events []*cloudwatchlogs.InputLogEvent, logGroupName *string, logStreamName *string, nextToken *string, cloudwatchlogsClient *cloudwatchlogs.CloudWatchLogs) (*string, error) {
 
-	fmt.Printf("%v\n", events)
-
 	sort.Sort(ByTimestamp(events))
 
 	putLogEventInput := &cloudwatchlogs.PutLogEventsInput{
@@ -173,10 +171,6 @@ func sendEventsCloudwatch(events []*cloudwatchlogs.InputLogEvent, logGroupName *
 	}
 	putLogEventsOutput, err := cloudwatchlogsClient.PutLogEvents(putLogEventInput)
 	return putLogEventsOutput.NextSequenceToken, err
-}
-
-func sendEventsConsole(events []*cloudwatchlogs.InputLogEvent) {
-	fmt.Printf("%v\n", events)
 }
 
 func getMessageTimestamp(m string) (string, int64) {
