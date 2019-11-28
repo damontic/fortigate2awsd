@@ -44,7 +44,7 @@ func main() {
 		log.Fatalf("You must specify:\n\t-ip-port as a string with format 'ip:port' where Fortigate is running.\n\t-username to use to connect to the Fortigate instance.\n\nA normal execution could be:\n\t%s -ip-port 192.168.0.1:22 -username admin -password 'a_secret_pass' -group cloudwatch_log_group -stream cloudwatch_log_stream\n\t%s -ip-port 192.168.0.1:22 -username admin -secret-manager 'aws_secret_manager_name' -group cloudwatch_log_group -stream cloudwatch_log_stream\n\nSee %s -h for help.", os.Args[0], os.Args[0], os.Args[0])
 	}
 
-	if *secret == "" || *password == "" {
+	if *secret == "" && *password == "" {
 		log.Fatalf("You must specify one of:\n\t-password 'a_password'\t(NOT RECOMENDED)\n\t-secret-manager 'an_aws_secret_manager_entry'\n\nSee %s -h for help.", os.Args[0])
 	}
 
