@@ -161,7 +161,7 @@ func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStream, ipPort, u
 
 func sendEventsCloudwatch(events []*cloudwatchlogs.InputLogEvent, logGroupName *string, logStreamName *string, nextToken *string, cloudwatchlogsClient *cloudwatchlogs.CloudWatchLogs) (*string, error) {
 
-	sort.Sort(ByTimestamp(events))
+	sort.Sort(byTimestamp(events))
 
 	putLogEventInput := &cloudwatchlogs.PutLogEventsInput{
 		LogEvents:     events,
@@ -189,8 +189,8 @@ func getMessageTimestamp(m string) (string, int64) {
 	return m, milliseconds
 }
 
-type ByTimestamp []*cloudwatchlogs.InputLogEvent
+type byTimestamp []*cloudwatchlogs.InputLogEvent
 
-func (a ByTimestamp) Len() int           { return len(a) }
-func (a ByTimestamp) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByTimestamp) Less(i, j int) bool { return *a[i].Timestamp < *a[j].Timestamp }
+func (a byTimestamp) Len() int           { return len(a) }
+func (a byTimestamp) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byTimestamp) Less(i, j int) bool { return *a[i].Timestamp < *a[j].Timestamp }
