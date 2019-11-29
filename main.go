@@ -144,7 +144,7 @@ func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStreamPrefix, ipP
 }
 
 func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io.WriteCloser, scanner *bufio.Scanner, dryRun *bool, cloudwatchlogsClient *cloudwatchlogs.CloudWatchLogs, logGroup, logStreamPrefix *string) {
-	logStreamS := *logStreamPrefix + " " + category.description
+	logStreamS := *logStreamPrefix + "_" + category.description
 	logStream := &logStreamS
 
 	if _, err := wc.Write([]byte("execute log filter device 1\n")); err != nil {
