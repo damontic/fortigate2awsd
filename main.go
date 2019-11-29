@@ -4,12 +4,14 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
@@ -17,18 +19,23 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+type fortigateCategory struct {
+	id          int
+	description string
+}
+
 func main() {
-	version := "0.0.0"
+	version := "0.0.1"
 
 	versionFlag := flag.Bool("version", false, "Set if you want to see the version and exit.")
 	dryRun := flag.Bool("dry-run", false, "Set if you want to output messages to console. Useful for testing.")
 	logGroup := flag.String("group", "", "Specify the log group where you want to send the logs")
-	logStream := flag.String("stream", "", "Specify the log stream where you want to send the logs")
+	logStreamPrefix := flag.String("stream-prefix", "", "Specify the log stream where you want to send the logs")
 	ipPort := flag.String("ip-port", "", "Specify the Fortigate ip and port to log to ip:port")
 	username := flag.String("username", "", "Specify the Fortigate ssh username")
 	password := flag.String("password", "", "Specify the Fortigate ssh password")
 	secret := flag.String("secret-manager", "", "Specify the AWS secrets manager secrets name to use as password")
-	eventSize := flag.Int("size", 10, "Specify the number of events to send to AWS Cloudwatch.")
+	eventSize := flag.Int("size", 100, "Specify the number of events to send to AWS Cloudwatch.")
 	flag.Parse()
 
 	if *versionFlag {
@@ -36,8 +43,8 @@ func main() {
 		os.Exit(0)
 	}
 
-	if !*dryRun && (*logGroup == "" || *logStream == "") {
-		log.Fatalf("You must specify both the log group and the log stream.\nCurrent logGroup: %s\nCurrent logStream: %s\nSee %s -h for help.", *logGroup, *logStream, os.Args[0])
+	if !*dryRun && (*logGroup == "" || *logStreamPrefix == "") {
+		log.Fatalf("You must specify both the log group and the log stream.\nCurrent logGroup: %s\nCurrent logStream: %s\nSee %s -h for help.", *logGroup, *logStreamPrefix, os.Args[0])
 	}
 
 	if *ipPort == "" || *username == "" {
@@ -48,23 +55,26 @@ func main() {
 		log.Fatalf("You must specify one of:\n\t-password 'a_password'\t(NOT RECOMENDED)\n\t-secret-manager 'an_aws_secret_manager_entry'\n\nSee %s -h for help.", os.Args[0])
 	}
 
-	fortigate2awsd(dryRun, eventSize, logGroup, logStream, ipPort, username, password, secret)
+	fortigate2awsd(dryRun, eventSize, logGroup, logStreamPrefix, ipPort, username, password, secret)
 }
 
-func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStream, ipPort, username, password, secret *string) {
+func getSecretFromAwsSecretManager(mySession *session.Session, secret *string) *string {
+	secretsmanagerClient := secretsmanager.New(mySession)
+	getSecretValueInput := &secretsmanager.GetSecretValueInput{
+		SecretId: secret,
+	}
+	getSecretValueResult, err := secretsmanagerClient.GetSecretValue(getSecretValueInput)
+	if err != nil {
+		log.Fatalf("Error in sshClient during secretsmanagerClient.GetSecretValue\n%v\n", err)
+	}
+	return getSecretValueResult.SecretString
+}
+
+func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStreamPrefix, ipPort, username, password, secret *string) {
 
 	mySession := session.Must(session.NewSession())
-
 	if *secret != "" {
-		secretsmanagerClient := secretsmanager.New(mySession)
-		getSecretValueInput := &secretsmanager.GetSecretValueInput{
-			SecretId: secret,
-		}
-		getSecretValueResult, err := secretsmanagerClient.GetSecretValue(getSecretValueInput)
-		if err != nil {
-			log.Fatalf("Error in sshClient during secretsmanagerClient.GetSecretValue\n%v\n", err)
-		}
-		password = getSecretValueResult.SecretString
+		password = getSecretFromAwsSecretManager(mySession, secret)
 	}
 
 	cloudwatchlogsClient := cloudwatchlogs.New(mySession)
@@ -106,63 +116,88 @@ func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStream, ipPort, u
 		log.Fatalf("Error in sshClient during session.Shell\n%v\n", err)
 	}
 
+	categories := []fortigateCategory{
+		fortigateCategory{0, "traffic"},
+		fortigateCategory{1, "event"},
+		fortigateCategory{2, "virus"},
+		fortigateCategory{3, "webfilter"},
+		fortigateCategory{4, "ips"},
+		fortigateCategory{5, "emailfilter"},
+		fortigateCategory{7, "anomaly"},
+		fortigateCategory{8, "voip"},
+		fortigateCategory{9, "dlp"},
+		fortigateCategory{10, "app-ctrl"},
+		fortigateCategory{12, "waf"},
+		fortigateCategory{15, "dns"},
+		fortigateCategory{16, "ssh"},
+		fortigateCategory{17, "ssl"},
+		fortigateCategory{18, "cifs"},
+		fortigateCategory{19, "file-filter"},
+	}
+	for {
+		for _, category := range categories {
+			getFortigateLogsByCategory(*eventSize, category, wc, scanner, dryRun, cloudwatchlogsClient, logGroup, logStreamPrefix)
+		}
+		time.Sleep(time.Second)
+	}
+
+}
+
+func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io.WriteCloser, scanner *bufio.Scanner, dryRun *bool, cloudwatchlogsClient *cloudwatchlogs.CloudWatchLogs, logGroup, logStreamPrefix *string) {
+	logStream := &category.description
+
 	if _, err := wc.Write([]byte("execute log filter device 1\n")); err != nil {
 		log.Fatalf("Failed to run: log filter device 1\n%s\n", err.Error())
+	}
+
+	cmd := fmt.Sprintf("execute log filter category %d\n", category.id)
+	if _, err := wc.Write([]byte(cmd)); err != nil {
+		log.Fatalf("Failed to run: log filter category %d\n%s\n", category.id, err.Error())
 	}
 	if _, err := wc.Write([]byte("execute log filter start-line 1\n")); err != nil {
 		log.Fatalf("Failed to run: log filter start-line 1\n%s\n", err.Error())
 	}
-	if _, err := wc.Write([]byte("execute log filter category 0\n")); err != nil {
-		log.Fatalf("Failed to run: log filter category 0\n%s\n", err.Error())
+	if _, err := wc.Write([]byte(fmt.Sprintf("execute log filter view-lines %d\n", eventSize))); err != nil {
+		log.Fatalf("Failed to run: log filter start-line 1\n%s\n", err.Error())
 	}
 	if _, err := wc.Write([]byte("execute log display\n")); err != nil {
 		log.Fatalf("Failed to run: log display\n%s\n", err.Error())
 	}
 
-	var counter = 0
-	var events = make([]*cloudwatchlogs.InputLogEvent, *eventSize)
+	var events = make([]*cloudwatchlogs.InputLogEvent, eventSize)
 	var nextToken *string
+	var err error
 
-	for scanner.Scan() {
+	for i := 0; i < eventSize; i++ {
 		m := scanner.Text()
 		if len(m) > 50 {
 
 			if !*dryRun {
 				message, timestamp := getMessageTimestamp(m)
 
-				events[counter] = &cloudwatchlogs.InputLogEvent{
+				events[i] = &cloudwatchlogs.InputLogEvent{
 					Message:   &message,
 					Timestamp: &timestamp,
 				}
-
-				if counter == *eventSize-1 {
-					counter = 0
-					nextToken, err = sendEventsCloudwatch(events, logGroup, logStream, nextToken, cloudwatchlogsClient)
-					if err != nil {
-						firstErrorLine := strings.Split(err.Error(), "\n")[0]
-						splittedError := strings.Split(firstErrorLine, " ")
-						nextToken, err = sendEventsCloudwatch(events, logGroup, logStream, &splittedError[len(splittedError)-1], cloudwatchlogsClient)
-						if err != nil {
-							log.Fatalf("%v", err)
-						}
-					}
-				}
-				counter++
 			} else {
 				fmt.Println(m)
 			}
+		}
+	}
 
-			if _, err := wc.Write([]byte("execute log display\n")); err != nil {
-				log.Fatalf("Failed to run: log display\n%s\n", err.Error())
-			}
+	sort.Sort(byTimestamp(events))
+	nextToken, err = sendEventsCloudwatch(events, logGroup, logStream, nextToken, cloudwatchlogsClient)
+	if err != nil {
+		firstErrorLine := strings.Split(err.Error(), "\n")[0]
+		splittedError := strings.Split(firstErrorLine, " ")
+		nextToken, err = sendEventsCloudwatch(events, logGroup, logStream, &splittedError[len(splittedError)-1], cloudwatchlogsClient)
+		if err != nil {
+			log.Fatalf("%v", err)
 		}
 	}
 }
 
 func sendEventsCloudwatch(events []*cloudwatchlogs.InputLogEvent, logGroupName *string, logStreamName *string, nextToken *string, cloudwatchlogsClient *cloudwatchlogs.CloudWatchLogs) (*string, error) {
-
-	sort.Sort(byTimestamp(events))
-
 	putLogEventInput := &cloudwatchlogs.PutLogEventsInput{
 		LogEvents:     events,
 		LogGroupName:  logGroupName,
