@@ -80,43 +80,6 @@ func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStreamPrefix, ipP
 
 	cloudwatchlogsClient := cloudwatchlogs.New(mySession)
 
-	config := &ssh.ClientConfig{
-		User: *username,
-		Auth: []ssh.AuthMethod{
-			ssh.Password(*password),
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	}
-	client, err := ssh.Dial("tcp", *ipPort, config)
-	if err != nil {
-		log.Fatalf("Error in sshClient during ssh.Dial\n%v\n", err)
-	}
-
-	session, err := client.NewSession()
-	if err != nil {
-		log.Fatalf("Error in sshClient during client.NewSession\n%v\n", err)
-	}
-	defer session.Close()
-
-	wc, err := session.StdinPipe()
-	if err != nil {
-		log.Fatalf("Error in sshClient during session.StdinPipe\n%v\n", err)
-	}
-	defer wc.Close()
-
-	r, err := session.StdoutPipe()
-	if err != nil {
-		log.Fatalf("Error in sshClient during session.StdoutPipe\n%v\n", err)
-	}
-
-	scanner := bufio.NewScanner(r)
-	scanner.Split(bufio.ScanLines)
-
-	err = session.Shell()
-	if err != nil {
-		log.Fatalf("Error in sshClient during session.Shell\n%v\n", err)
-	}
-
 	categories := []fortigateCategory{
 		fortigateCategory{0, "traffic"},
 		fortigateCategory{1, "event"},
@@ -140,11 +103,53 @@ func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStreamPrefix, ipP
 			if *verbose {
 				log.Printf("Sending category: %s\n", category.description)
 			}
+			wc, scanner := getSshWriteCloserAndScanner(username, password, ipPort)
 			getFortigateLogsByCategory(*eventSize, category, wc, scanner, dryRun, cloudwatchlogsClient, logGroup, logStreamPrefix, verbose)
 		}
 		time.Sleep(time.Second)
 	}
 
+}
+
+func getSshWriteCloserAndScanner(username, password, ipPort *string) (io.WriteCloser, *bufio.Scanner) {
+	config := &ssh.ClientConfig{
+		User: *username,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(*password),
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	}
+	client, err := ssh.Dial("tcp", *ipPort, config)
+	if err != nil {
+		log.Fatalf("Error in getSshWriteCloserAndScanner during ssh.Dial\n%v\n", err)
+	}
+
+	session, err := client.NewSession()
+	if err != nil {
+		log.Fatalf("Error in getSshWriteCloserAndScanner during client.NewSession\n%v\n", err)
+	}
+	defer session.Close()
+
+	wc, err := session.StdinPipe()
+	if err != nil {
+		log.Fatalf("Error in getSshWriteCloserAndScanner during session.StdinPipe\n%v\n", err)
+	}
+	defer wc.Close()
+
+	r, err := session.StdoutPipe()
+	if err != nil {
+		log.Fatalf("Error in getSshWriteCloserAndScanner during session.StdoutPipe\n%v\n", err)
+	}
+
+	err = session.Shell()
+	if err != nil {
+		log.Fatalf("Error in getSshWriteCloserAndScanner during session.Shell\n%v\n", err)
+	}
+
+	scanner := bufio.NewScanner(r)
+	scanner.Split(bufio.ScanLines)
+
+	return wc, scanner
 }
 
 func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io.WriteCloser, scanner *bufio.Scanner, dryRun *bool, cloudwatchlogsClient *cloudwatchlogs.CloudWatchLogs, logGroup, logStreamPrefix *string, verbose *bool) {
@@ -185,10 +190,7 @@ func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io
 				if *verbose {
 					log.Printf("%s", m)
 				}
-				message, timestamp, err := getMessageTimestamp(m)
-				if err != nil {
-					continue
-				}
+				message, timestamp := getMessageTimestamp(m)
 
 				event := &cloudwatchlogs.InputLogEvent{
 					Message:   &message,
@@ -226,13 +228,9 @@ func sendEventsCloudwatch(events []*cloudwatchlogs.InputLogEvent, logGroupName *
 	return putLogEventsOutput.NextSequenceToken, err
 }
 
-func getMessageTimestamp(m string) (string, int64, error) {
+func getMessageTimestamp(m string) (string, int64) {
 	re := regexp.MustCompile(`^.* eventtime=(.*) .*$`)
 	result := re.FindStringSubmatchIndex(m)
-
-	if len(result) < 4 {
-		return "", 0, fmt.Errorf("Unexpected string...: %s", m)
-	}
 
 	secondsPart := m[result[2] : result[2]+10]
 	millisecondsPart := "000"
@@ -243,7 +241,7 @@ func getMessageTimestamp(m string) (string, int64, error) {
 		log.Fatalf("Error in getMessageTimestamp\n%v\nMessage: %s\ntimestamp: %s\n", m, millisecondsString, err)
 	}
 
-	return m, milliseconds, nil
+	return m, milliseconds
 }
 
 type byTimestamp []*cloudwatchlogs.InputLogEvent
