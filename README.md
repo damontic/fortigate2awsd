@@ -7,27 +7,27 @@ This was tested in:
 - FortiGate-VM64-AWSONDEMAND v6.2.1,build0932,190716 (GA)
 
 The process executes `ssh` to connect to Fortigate and sends to Cloudwatch logs events.
-To do that multiple streams must exist with the same post fix:
+To do that multiple log gruops must exist with the same post fix:
 ```
--{stream-prefix}_traffic
--{stream-prefix}_event
--{stream-prefix}_virus
--{stream-prefix}_webfilter
--{stream-prefix}_ips
--{stream-prefix}_emailfilter
--{stream-prefix}_anomaly
--{stream-prefix}_voip
--{stream-prefix}_dlp
--{stream-prefix}_app-ctrl
--{stream-prefix}_waf
--{stream-prefix}_dns
--{stream-prefix}_ssh
--{stream-prefix}_ssl
--{stream-prefix}_cifs
--{stream-prefix}_file-filter
+-{log-group-prefix}-traffic
+-{log-group-prefix}-event
+-{log-group-prefix}-virus
+-{log-group-prefix}-webfilter
+-{log-group-prefix}-ips
+-{log-group-prefix}-emailfilter
+-{log-group-prefix}-anomaly
+-{log-group-prefix}-voip
+-{log-group-prefix}-dlp
+-{log-group-prefix}-app-ctrl
+-{log-group-prefix}-waf
+-{log-group-prefix}-dns
+-{log-group-prefix}-ssh
+-{log-group-prefix}-ssl
+-{log-group-prefix}-cifs
+-{log-group-prefix}-file-filter
 ```
-Where `{stream-prefix}` is one of the program's parameters. This way Fortigate logs are categorized.
-All those streams are stored in the same log group specified as another parameter.
+Where `{log-group-prefix}` is one of the program's parameters. This way Fortigate logs are categorized.
+Every log group will have a stream with the specified (as a process argument) name created.
 
 # Usage
 ```bash
@@ -35,8 +35,8 @@ $ fortigate2awsd -h
 Usage of fortigate2awsd:
   -dry-run
     	Set if you want to output messages to console. Useful for testing.
-  -group string
-    	Specify the log group where you want to send the logs
+  -group-prefix string
+    	Specify the log group prefix where you want to send the logs
   -ip-port string
     	Specify the Fortigate ip and port to log to ip:port
   -password string
@@ -45,7 +45,7 @@ Usage of fortigate2awsd:
     	Specify the AWS secrets manager secrets name to use as password
   -size int
     	Specify the number of events to send to AWS Cloudwatch. (default 100)
-  -stream-prefix string
+  -stream string
     	Specify the log stream where you want to send the logs
   -username string
     	Specify the Fortigate ssh username

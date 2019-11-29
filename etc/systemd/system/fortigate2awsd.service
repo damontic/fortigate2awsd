@@ -6,5 +6,5 @@ After=systemd-journald.service systemd-remount-fs.service
 
 [Service]
 Environment=AWS_REGION=us-east-1
-ExecStart=/usr/local/bin/fortigate2awsd -group UTM-Logs -stream-prefix utm_az1 -username entrypoint -secret-manager fortigate_entrypoint -ip-port 10.200.102.50:22
+ExecStart=/usr/local/bin/fortigate2awsd -group-prefix UTM-Logs -stream utm_az1 -username entrypoint -secret-manager fortigate_entrypoint -ip-port 10.200.102.50:22
 Type=simple

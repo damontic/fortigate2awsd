@@ -25,12 +25,12 @@ type fortigateCategory struct {
 }
 
 func main() {
-	version := "0.0.1"
+	version := "0.0.3"
 
 	versionFlag := flag.Bool("version", false, "Set if you want to see the version and exit.")
 	dryRun := flag.Bool("dry-run", false, "Set if you want to output messages to console. Useful for testing.")
-	logGroup := flag.String("group", "", "Specify the log group where you want to send the logs")
-	logStreamPrefix := flag.String("stream-prefix", "", "Specify the log stream where you want to send the logs")
+	logGroupPrefix := flag.String("group-prefix", "", "Specify the log group prefix where you want to send the logs")
+	logStream := flag.String("stream", "", "Specify the log stream where you want to send the logs")
 	ipPort := flag.String("ip-port", "", "Specify the Fortigate ip and port to log to ip:port")
 	username := flag.String("username", "", "Specify the Fortigate ssh username")
 	password := flag.String("password", "", "Specify the Fortigate ssh password")
@@ -44,8 +44,8 @@ func main() {
 		os.Exit(0)
 	}
 
-	if !*dryRun && (*logGroup == "" || *logStreamPrefix == "") {
-		log.Fatalf("You must specify both the log group and the log stream.\nCurrent logGroup: %s\nCurrent logStream: %s\nSee %s -h for help.", *logGroup, *logStreamPrefix, os.Args[0])
+	if !*dryRun && (*logGroupPrefix == "" || *logStream == "") {
+		log.Fatalf("You must specify both the log group prefix and the log stream.\nCurrent logGroupPrefix: %s\nCurrent logStream: %s\nSee %s -h for help.", *logGroupPrefix, *logStream, os.Args[0])
 	}
 
 	if *ipPort == "" || *username == "" {
@@ -56,22 +56,10 @@ func main() {
 		log.Fatalf("You must specify one of:\n\t-password 'a_password'\t(NOT RECOMENDED)\n\t-secret-manager 'an_aws_secret_manager_entry'\n\nSee %s -h for help.", os.Args[0])
 	}
 
-	fortigate2awsd(dryRun, eventSize, logGroup, logStreamPrefix, ipPort, username, password, secret, verbose)
+	fortigate2awsd(dryRun, eventSize, logGroupPrefix, logStream, ipPort, username, password, secret, verbose)
 }
 
-func getSecretFromAwsSecretManager(mySession *session.Session, secret *string) *string {
-	secretsmanagerClient := secretsmanager.New(mySession)
-	getSecretValueInput := &secretsmanager.GetSecretValueInput{
-		SecretId: secret,
-	}
-	getSecretValueResult, err := secretsmanagerClient.GetSecretValue(getSecretValueInput)
-	if err != nil {
-		log.Fatalf("Error in sshClient during secretsmanagerClient.GetSecretValue\n%v\n", err)
-	}
-	return getSecretValueResult.SecretString
-}
-
-func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStreamPrefix, ipPort, username, password, secret *string, verbose *bool) {
+func fortigate2awsd(dryRun *bool, eventSize *int, logGroupPrefix, logStream, ipPort, username, password, secret *string, verbose *bool) {
 
 	mySession := session.Must(session.NewSession())
 	if *secret != "" {
@@ -116,13 +104,25 @@ func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStreamPrefix, ipP
 				log.Printf("Sending category: %s\n", category.description)
 			}
 			session, wc, scanner := getSshSessionWriteCloserAndScanner(sshClient)
-			getFortigateLogsByCategory(*eventSize, category, wc, scanner, dryRun, cloudwatchlogsClient, logGroup, logStreamPrefix, verbose)
+			getFortigateLogsByCategory(*eventSize, category, wc, scanner, dryRun, cloudwatchlogsClient, logGroupPrefix, logStream, verbose)
 			wc.Close()
 			session.Close()
 		}
 		time.Sleep(time.Second)
 	}
 
+}
+
+func getSecretFromAwsSecretManager(mySession *session.Session, secret *string) *string {
+	secretsmanagerClient := secretsmanager.New(mySession)
+	getSecretValueInput := &secretsmanager.GetSecretValueInput{
+		SecretId: secret,
+	}
+	getSecretValueResult, err := secretsmanagerClient.GetSecretValue(getSecretValueInput)
+	if err != nil {
+		log.Fatalf("Error in sshClient during secretsmanagerClient.GetSecretValue\n%v\n", err)
+	}
+	return getSecretValueResult.SecretString
 }
 
 func getSshSessionWriteCloserAndScanner(sshClient *ssh.Client) (*ssh.Session, io.WriteCloser, *bufio.Scanner) {
@@ -152,9 +152,9 @@ func getSshSessionWriteCloserAndScanner(sshClient *ssh.Client) (*ssh.Session, io
 	return session, wc, scanner
 }
 
-func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io.WriteCloser, scanner *bufio.Scanner, dryRun *bool, cloudwatchlogsClient *cloudwatchlogs.CloudWatchLogs, logGroup, logStreamPrefix *string, verbose *bool) {
-	logStreamS := *logStreamPrefix + "_" + category.description
-	logStream := &logStreamS
+func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io.WriteCloser, scanner *bufio.Scanner, dryRun *bool, cloudwatchlogsClient *cloudwatchlogs.CloudWatchLogs, logGroupPrefix, logStream *string, verbose *bool) {
+	logGroupS := *logGroupPrefix + "_" + category.description
+	logGroup := &logGroupS
 
 	if _, err := wc.Write([]byte("execute log filter device 1\n")); err != nil {
 		log.Fatalf("Failed to run: log filter device 1\n%s\n", err.Error())
@@ -217,17 +217,6 @@ func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io
 	}
 }
 
-func sendEventsCloudwatch(events []*cloudwatchlogs.InputLogEvent, logGroupName *string, logStreamName *string, nextToken *string, cloudwatchlogsClient *cloudwatchlogs.CloudWatchLogs) (*string, error) {
-	putLogEventInput := &cloudwatchlogs.PutLogEventsInput{
-		LogEvents:     events,
-		LogGroupName:  logGroupName,
-		LogStreamName: logStreamName,
-		SequenceToken: nextToken,
-	}
-	putLogEventsOutput, err := cloudwatchlogsClient.PutLogEvents(putLogEventInput)
-	return putLogEventsOutput.NextSequenceToken, err
-}
-
 func getMessageTimestamp(m string) (string, int64) {
 	re := regexp.MustCompile(`^.* eventtime=(.*) .*$`)
 	result := re.FindStringSubmatchIndex(m)
@@ -242,6 +231,17 @@ func getMessageTimestamp(m string) (string, int64) {
 	}
 
 	return m, milliseconds
+}
+
+func sendEventsCloudwatch(events []*cloudwatchlogs.InputLogEvent, logGroupName *string, logStreamName *string, nextToken *string, cloudwatchlogsClient *cloudwatchlogs.CloudWatchLogs) (*string, error) {
+	putLogEventInput := &cloudwatchlogs.PutLogEventsInput{
+		LogEvents:     events,
+		LogGroupName:  logGroupName,
+		LogStreamName: logStreamName,
+		SequenceToken: nextToken,
+	}
+	putLogEventsOutput, err := cloudwatchlogsClient.PutLogEvents(putLogEventInput)
+	return putLogEventsOutput.NextSequenceToken, err
 }
 
 type byTimestamp []*cloudwatchlogs.InputLogEvent
