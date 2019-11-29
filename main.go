@@ -182,7 +182,10 @@ func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io
 				if *verbose {
 					log.Printf("%s", m)
 				}
-				message, timestamp := getMessageTimestamp(m)
+				message, timestamp, err := getMessageTimestamp(m)
+				if err != nil {
+					continue
+				}
 
 				event := &cloudwatchlogs.InputLogEvent{
 					Message:   &message,
@@ -220,9 +223,13 @@ func sendEventsCloudwatch(events []*cloudwatchlogs.InputLogEvent, logGroupName *
 	return putLogEventsOutput.NextSequenceToken, err
 }
 
-func getMessageTimestamp(m string) (string, int64) {
+func getMessageTimestamp(m string) (string, int64, error) {
 	re := regexp.MustCompile(`^.* eventtime=(.*) .*$`)
 	result := re.FindStringSubmatchIndex(m)
+
+	if len(result) < 4 {
+		return "", 0, fmt.Errorf("Unexpected string...: %s", m)
+	}
 
 	secondsPart := m[result[2] : result[2]+10]
 	millisecondsPart := "000"
@@ -233,7 +240,7 @@ func getMessageTimestamp(m string) (string, int64) {
 		log.Fatalf("Error in getMessageTimestamp\n%v\nMessage: %s\ntimestamp: %s\n", m, millisecondsString, err)
 	}
 
-	return m, milliseconds
+	return m, milliseconds, nil
 }
 
 type byTimestamp []*cloudwatchlogs.InputLogEvent
