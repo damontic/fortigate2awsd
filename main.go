@@ -36,6 +36,7 @@ func main() {
 	password := flag.String("password", "", "Specify the Fortigate ssh password")
 	secret := flag.String("secret-manager", "", "Specify the AWS secrets manager secrets name to use as password")
 	eventSize := flag.Int("size", 100, "Specify the number of events to send to AWS Cloudwatch.")
+	verbose := flag.Bool("verbose", false, "Set if you want to be verbose.")
 	flag.Parse()
 
 	if *versionFlag {
@@ -55,7 +56,7 @@ func main() {
 		log.Fatalf("You must specify one of:\n\t-password 'a_password'\t(NOT RECOMENDED)\n\t-secret-manager 'an_aws_secret_manager_entry'\n\nSee %s -h for help.", os.Args[0])
 	}
 
-	fortigate2awsd(dryRun, eventSize, logGroup, logStreamPrefix, ipPort, username, password, secret)
+	fortigate2awsd(dryRun, eventSize, logGroup, logStreamPrefix, ipPort, username, password, secret, verbose)
 }
 
 func getSecretFromAwsSecretManager(mySession *session.Session, secret *string) *string {
@@ -70,7 +71,7 @@ func getSecretFromAwsSecretManager(mySession *session.Session, secret *string) *
 	return getSecretValueResult.SecretString
 }
 
-func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStreamPrefix, ipPort, username, password, secret *string) {
+func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStreamPrefix, ipPort, username, password, secret *string, verbose *bool) {
 
 	mySession := session.Must(session.NewSession())
 	if *secret != "" {
@@ -136,14 +137,14 @@ func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStreamPrefix, ipP
 	}
 	for {
 		for _, category := range categories {
-			getFortigateLogsByCategory(*eventSize, category, wc, scanner, dryRun, cloudwatchlogsClient, logGroup, logStreamPrefix)
+			getFortigateLogsByCategory(*eventSize, category, wc, scanner, dryRun, cloudwatchlogsClient, logGroup, logStreamPrefix, verbose)
 		}
 		time.Sleep(time.Second)
 	}
 
 }
 
-func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io.WriteCloser, scanner *bufio.Scanner, dryRun *bool, cloudwatchlogsClient *cloudwatchlogs.CloudWatchLogs, logGroup, logStreamPrefix *string) {
+func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io.WriteCloser, scanner *bufio.Scanner, dryRun *bool, cloudwatchlogsClient *cloudwatchlogs.CloudWatchLogs, logGroup, logStreamPrefix *string, verbose *bool) {
 	logStreamS := *logStreamPrefix + "_" + category.description
 	logStream := &logStreamS
 
@@ -178,6 +179,9 @@ func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io
 		if len(m) > 50 {
 
 			if !*dryRun {
+				if *verbose {
+					log.Printf("%s", m)
+				}
 				message, timestamp := getMessageTimestamp(m)
 
 				event := &cloudwatchlogs.InputLogEvent{
