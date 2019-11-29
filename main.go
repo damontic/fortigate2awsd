@@ -170,6 +170,9 @@ func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io
 	var err error
 
 	for i := 0; i < eventSize; i++ {
+		if _, err := wc.Write([]byte("\n")); err != nil {
+			log.Fatalf("Failed to run: New Line to unblock Scan\n%s\n", err.Error())
+		}
 		scanner.Scan()
 		m := scanner.Text()
 		if len(m) > 50 {
