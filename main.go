@@ -187,14 +187,16 @@ func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io
 		}
 	}
 
-	sort.Sort(byTimestamp(events))
-	nextToken, err = sendEventsCloudwatch(events, logGroup, logStream, nextToken, cloudwatchlogsClient)
-	if err != nil {
-		firstErrorLine := strings.Split(err.Error(), "\n")[0]
-		splittedError := strings.Split(firstErrorLine, " ")
-		nextToken, err = sendEventsCloudwatch(events, logGroup, logStream, &splittedError[len(splittedError)-1], cloudwatchlogsClient)
+	if len(events) > 0 {
+		sort.Sort(byTimestamp(events))
+		nextToken, err = sendEventsCloudwatch(events, logGroup, logStream, nextToken, cloudwatchlogsClient)
 		if err != nil {
-			log.Fatalf("%v", err)
+			firstErrorLine := strings.Split(err.Error(), "\n")[0]
+			splittedError := strings.Split(firstErrorLine, " ")
+			nextToken, err = sendEventsCloudwatch(events, logGroup, logStream, &splittedError[len(splittedError)-1], cloudwatchlogsClient)
+			if err != nil {
+				log.Fatalf("%v", err)
+			}
 		}
 	}
 }
