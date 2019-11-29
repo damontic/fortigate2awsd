@@ -165,7 +165,7 @@ func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io
 		log.Fatalf("Failed to run: log display\n%s\n", err.Error())
 	}
 
-	var events = make([]*cloudwatchlogs.InputLogEvent, eventSize)
+	var events = make([]*cloudwatchlogs.InputLogEvent, 0)
 	var nextToken *string
 	var err error
 
@@ -176,10 +176,11 @@ func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io
 			if !*dryRun {
 				message, timestamp := getMessageTimestamp(m)
 
-				events[i] = &cloudwatchlogs.InputLogEvent{
+				event := &cloudwatchlogs.InputLogEvent{
 					Message:   &message,
 					Timestamp: &timestamp,
 				}
+				events = append(events, event)
 			} else {
 				fmt.Println(m)
 			}
