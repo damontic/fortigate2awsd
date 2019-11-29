@@ -153,7 +153,7 @@ func getSshSessionWriteCloserAndScanner(sshClient *ssh.Client) (*ssh.Session, io
 }
 
 func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io.WriteCloser, scanner *bufio.Scanner, dryRun *bool, cloudwatchlogsClient *cloudwatchlogs.CloudWatchLogs, logGroupPrefix, logStream *string, verbose *bool) {
-	logGroupS := *logGroupPrefix + "_" + category.description
+	logGroupS := *logGroupPrefix + "-" + category.description
 	logGroup := &logGroupS
 
 	if _, err := wc.Write([]byte("execute log filter device 1\n")); err != nil {
