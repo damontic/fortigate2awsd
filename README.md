@@ -4,8 +4,30 @@ Runs a deamon which connects via SSH to a Fortigate Instance, gets its logs and 
 
 This was tested in:
 - FortiGate-90D v6.0.5,build0268,190507
+- FortiGate-VM64-AWSONDEMAND v6.2.1,build0932,190716 (GA)
 
-The process executes `ssh` to connect to Fortigate and sends to Cloudwatch logs events every 10 new lines.
+The process executes `ssh` to connect to Fortigate and sends to Cloudwatch logs events.
+To do that multiple streams must exist with the same post fix:
+```
+-{stream-prefix}_traffic
+-{stream-prefix}_event
+-{stream-prefix}_virus
+-{stream-prefix}_webfilter
+-{stream-prefix}_ips
+-{stream-prefix}_emailfilter
+-{stream-prefix}_anomaly
+-{stream-prefix}_voip
+-{stream-prefix}_dlp
+-{stream-prefix}_app-ctrl
+-{stream-prefix}_waf
+-{stream-prefix}_dns
+-{stream-prefix}_ssh
+-{stream-prefix}_ssl
+-{stream-prefix}_cifs
+-{stream-prefix}_file-filter
+```
+Where `{stream-prefix}` is one of the program's parameters. This way Fortigate logs are categorized.
+All those streams are stored in the same log group specified as another parameter.
 
 # Usage
 ```bash
@@ -22,8 +44,8 @@ Usage of fortigate2awsd:
   -secret-manager string
     	Specify the AWS secrets manager secrets name to use as password
   -size int
-    	Specify the number of events to send to AWS Cloudwatch. (default 10)
-  -stream string
+    	Specify the number of events to send to AWS Cloudwatch. (default 100)
+  -stream-prefix string
     	Specify the log stream where you want to send the logs
   -username string
     	Specify the Fortigate ssh username

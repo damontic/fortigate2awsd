@@ -1,9 +1,10 @@
 [Unit]
-Description=Connect to Fortigate and send logs to Output
-DefaultDependencies=no
+Description=Send UTM A logs to the CLI as a dry-run execution
+DefaultDependencies=no 
 Requires=systemd-journald.service
-After=systemd-journald.service systemd-remount-fs.service
+After=systemd-journald.service systemd-remount-fs.service 
 
 [Service]
-ExecStart=/usr/local/bin/fortigate2awsd -dry-run
+Environment=AWS_REGION=us-east-1
+ExecStart=/usr/local/bin/fortigate2awsd -dry-run -group UTM-Logs -stream-prefix utm_az1 -username entrypoint -secret-manager fortigate_entrypoint -ip-port 10.200.102.50:22
 Type=simple
