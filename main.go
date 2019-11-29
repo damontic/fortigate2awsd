@@ -25,7 +25,7 @@ type fortigateCategory struct {
 }
 
 func main() {
-	version := "0.0.3"
+	version := "0.0.2"
 
 	versionFlag := flag.Bool("version", false, "Set if you want to see the version and exit.")
 	dryRun := flag.Bool("dry-run", false, "Set if you want to output messages to console. Useful for testing.")
