@@ -115,26 +115,26 @@ func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStreamPrefix, ipP
 			if *verbose {
 				log.Printf("Sending category: %s\n", category.description)
 			}
-			wc, scanner := getSshWriteCloserAndScanner(sshClient)
+			session, wc, scanner := getSshSessionWriteCloserAndScanner(sshClient)
 			getFortigateLogsByCategory(*eventSize, category, wc, scanner, dryRun, cloudwatchlogsClient, logGroup, logStreamPrefix, verbose)
+			wc.Close()
+			session.Close()
 		}
 		time.Sleep(time.Second)
 	}
 
 }
 
-func getSshWriteCloserAndScanner(sshClient *ssh.Client) (io.WriteCloser, *bufio.Scanner) {
+func getSshSessionWriteCloserAndScanner(sshClient *ssh.Client) (*ssh.Session, io.WriteCloser, *bufio.Scanner) {
 	session, err := sshClient.NewSession()
 	if err != nil {
 		log.Fatalf("Error in getSshWriteCloserAndScanner during client.NewSession\n%v\n", err)
 	}
-	defer session.Close()
 
 	wc, err := session.StdinPipe()
 	if err != nil {
 		log.Fatalf("Error in getSshWriteCloserAndScanner during session.StdinPipe\n%v\n", err)
 	}
-	defer wc.Close()
 
 	r, err := session.StdoutPipe()
 	if err != nil {
@@ -149,7 +149,7 @@ func getSshWriteCloserAndScanner(sshClient *ssh.Client) (io.WriteCloser, *bufio.
 		log.Fatalf("Error in getSshWriteCloserAndScanner during session.Shell\n%v\n", err)
 	}
 
-	return wc, scanner
+	return session, wc, scanner
 }
 
 func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io.WriteCloser, scanner *bufio.Scanner, dryRun *bool, cloudwatchlogsClient *cloudwatchlogs.CloudWatchLogs, logGroup, logStreamPrefix *string, verbose *bool) {
