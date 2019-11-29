@@ -49,6 +49,8 @@ Usage of fortigate2awsd:
     	Specify the log stream where you want to send the logs
   -username string
     	Specify the Fortigate ssh username
+  -verbose
+    	Set if you want to be verbose.
   -version
     	Set if you want to see the version and exit.
 ```
