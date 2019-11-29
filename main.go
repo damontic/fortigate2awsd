@@ -141,13 +141,13 @@ func getSshWriteCloserAndScanner(username, password, ipPort *string) (io.WriteCl
 		log.Fatalf("Error in getSshWriteCloserAndScanner during session.StdoutPipe\n%v\n", err)
 	}
 
+	scanner := bufio.NewScanner(r)
+	scanner.Split(bufio.ScanLines)
+
 	err = session.Shell()
 	if err != nil {
 		log.Fatalf("Error in getSshWriteCloserAndScanner during session.Shell\n%v\n", err)
 	}
-
-	scanner := bufio.NewScanner(r)
-	scanner.Split(bufio.ScanLines)
 
 	return wc, scanner
 }
