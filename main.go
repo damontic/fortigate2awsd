@@ -170,6 +170,7 @@ func getFortigateLogsByCategory(eventSize int, category fortigateCategory, wc io
 	var err error
 
 	for i := 0; i < eventSize; i++ {
+		scanner.Scan()
 		m := scanner.Text()
 		if len(m) > 50 {
 
