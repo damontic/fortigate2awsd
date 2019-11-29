@@ -80,6 +80,18 @@ func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStreamPrefix, ipP
 
 	cloudwatchlogsClient := cloudwatchlogs.New(mySession)
 
+	config := &ssh.ClientConfig{
+		User: *username,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(*password),
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	}
+	sshClient, err := ssh.Dial("tcp", *ipPort, config)
+	if err != nil {
+		log.Fatalf("Error in getSshWriteCloserAndScanner during ssh.Dial\n%v\n", err)
+	}
+
 	categories := []fortigateCategory{
 		fortigateCategory{0, "traffic"},
 		fortigateCategory{1, "event"},
@@ -103,7 +115,7 @@ func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStreamPrefix, ipP
 			if *verbose {
 				log.Printf("Sending category: %s\n", category.description)
 			}
-			wc, scanner := getSshWriteCloserAndScanner(username, password, ipPort)
+			wc, scanner := getSshWriteCloserAndScanner(sshClient)
 			getFortigateLogsByCategory(*eventSize, category, wc, scanner, dryRun, cloudwatchlogsClient, logGroup, logStreamPrefix, verbose)
 		}
 		time.Sleep(time.Second)
@@ -111,20 +123,8 @@ func fortigate2awsd(dryRun *bool, eventSize *int, logGroup, logStreamPrefix, ipP
 
 }
 
-func getSshWriteCloserAndScanner(username, password, ipPort *string) (io.WriteCloser, *bufio.Scanner) {
-	config := &ssh.ClientConfig{
-		User: *username,
-		Auth: []ssh.AuthMethod{
-			ssh.Password(*password),
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	}
-	client, err := ssh.Dial("tcp", *ipPort, config)
-	if err != nil {
-		log.Fatalf("Error in getSshWriteCloserAndScanner during ssh.Dial\n%v\n", err)
-	}
-
-	session, err := client.NewSession()
+func getSshWriteCloserAndScanner(sshClient *ssh.Client) (io.WriteCloser, *bufio.Scanner) {
+	session, err := sshClient.NewSession()
 	if err != nil {
 		log.Fatalf("Error in getSshWriteCloserAndScanner during client.NewSession\n%v\n", err)
 	}
