@@ -41,6 +41,8 @@ Usage of fortigate2awsd:
     	Specify the Fortigate ip and port to log to ip:port
   -password string
     	Specify the Fortigate ssh password
+  -period int
+    	Specify the number of seconds to wait between logs category pushes. (default 300)
   -secret-manager string
     	Specify the AWS secrets manager secrets name to use as password
   -size int

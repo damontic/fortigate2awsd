@@ -36,6 +36,7 @@ func main() {
 	password := flag.String("password", "", "Specify the Fortigate ssh password")
 	secret := flag.String("secret-manager", "", "Specify the AWS secrets manager secrets name to use as password")
 	eventSize := flag.Int("size", 100, "Specify the number of events to send to AWS Cloudwatch.")
+	period := flag.Int("period", 300, "Specify the number of seconds to wait between logs category pushes.")
 	verbose := flag.Bool("verbose", false, "Set if you want to be verbose.")
 	flag.Parse()
 
@@ -56,10 +57,10 @@ func main() {
 		log.Fatalf("You must specify one of:\n\t-password 'a_password'\t(NOT RECOMENDED)\n\t-secret-manager 'an_aws_secret_manager_entry'\n\nSee %s -h for help.", os.Args[0])
 	}
 
-	fortigate2awsd(dryRun, eventSize, logGroupPrefix, logStream, ipPort, username, password, secret, verbose)
+	fortigate2awsd(dryRun, period, eventSize, logGroupPrefix, logStream, ipPort, username, password, secret, verbose)
 }
 
-func fortigate2awsd(dryRun *bool, eventSize *int, logGroupPrefix, logStream, ipPort, username, password, secret *string, verbose *bool) {
+func fortigate2awsd(dryRun *bool, period, eventSize *int, logGroupPrefix, logStream, ipPort, username, password, secret *string, verbose *bool) {
 
 	mySession := session.Must(session.NewSession())
 	if *secret != "" {
@@ -108,7 +109,7 @@ func fortigate2awsd(dryRun *bool, eventSize *int, logGroupPrefix, logStream, ipP
 			wc.Close()
 			session.Close()
 		}
-		time.Sleep(time.Second)
+		time.Sleep(time.Duration(*period) * time.Second)
 	}
 
 }
