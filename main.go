@@ -231,7 +231,8 @@ func getMessageTimestamp(m string) (string, int64) {
 		log.Fatalf("Error in getMessageTimestamp\n%v\nMessage: %s\ntimestamp: %s\n", m, millisecondsString, err)
 	}
 
-	return m, milliseconds
+	firstSpaceIndex := strings.Index(m, " ")
+	return m[firstSpaceIndex+1:], milliseconds
 }
 
 func sendEventsCloudwatch(events []*cloudwatchlogs.InputLogEvent, logGroupName *string, logStreamName *string, nextToken *string, cloudwatchlogsClient *cloudwatchlogs.CloudWatchLogs) (*string, error) {
